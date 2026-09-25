@@ -1,11 +1,174 @@
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzs4FWaIpjdn3SkqmemrCwN1YzY-EzN2_jXOnldMJmdKSRL1fIWfRt5ev6P9HeoYK_R/exec";
-let claims = [];
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเบิกจ่ายค่าใช้จ่ายบริษัท (Expense Reimbursement System)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Prompt', sans-serif; } </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col md:flex-row">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col justify-between min-h-screen z-40">
+        <div>
+            <div class="p-6 flex items-center space-x-3 border-b border-slate-800">
+                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl text-white shadow-lg">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-white text-lg">ExpenseCorp</h1>
+                    <p class="text-xs text-slate-400">ระบบเบิกจ่ายออนไลน์</p>
+                </div>
+            </div>
+            <nav class="px-4 mt-6 space-y-1">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-white bg-blue-600 shadow-md">
+                    <i class="fa-solid fa-chart-pie w-5"></i>
+                    <span>แดชบอร์ดสรุปผล</span>
+                </button>
+                <button onclick="switchTab('new-claim')" id="nav-new-claim" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                    <i class="fa-solid fa-circle-plus w-5"></i>
+                    <span>สร้างรายการเบิกใหม่</span>
+                </button>
+                <button onclick="switchTab('claims-list')" id="nav-claims-list" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                    <i class="fa-solid fa-list-check w-5"></i>
+                    <span>รายการขอเบิกทั้งหมด</span>
+                </button>
+            </nav>
+        </div>
+        <div class="p-4 text-xs text-emerald-400 text-center border-t border-slate-800">
+            🟢 Google Sheet Connected
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+
+        <!-- DASHBOARD -->
+        <section id="page-dashboard" class="space-y-6">
+            <div class="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800">แดชบอร์ดภาพรวมการเบิกจ่าย</h2>
+                    <p class="text-slate-500 text-sm">ข้อมูลบันทึกและดึงตรงจาก Google Sheet กลาง</p>
+                </div>
+                <button onclick="switchTab('new-claim')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-md">
+                    + ยื่นขอเบิกเงิน
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200">
+                    <span class="text-xs font-semibold text-slate-500">ยอดขอเบิกทั้งหมด</span>
+                    <h3 id="dash-total-amount" class="text-2xl font-bold text-slate-900 mt-2">฿0.00</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-amber-200">
+                    <span class="text-xs font-semibold text-amber-700">รออนุมัติ</span>
+                    <h3 id="dash-pending-amount" class="text-2xl font-bold text-amber-900 mt-2">฿0.00</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-emerald-200">
+                    <span class="text-xs font-semibold text-emerald-700">อนุมัติแล้ว</span>
+                    <h3 id="dash-approved-amount" class="text-2xl font-bold text-emerald-900 mt-2">฿0.00</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-rose-200">
+                    <span class="text-xs font-semibold text-rose-700">ปฏิเสธ / ไม่อนุมัติ</span>
+                    <h3 id="dash-rejected-amount" class="text-2xl font-bold text-rose-900 mt-2">฿0.00</h3>
+                </div>
+            </div>
+        </section>
+
+        <!-- FORM -->
+        <section id="page-new-claim" class="hidden max-w-3xl mx-auto space-y-6">
+            <div class="bg-white p-8 rounded-2xl border border-slate-200">
+                <h2 class="text-2xl font-bold text-slate-800 mb-6 border-b pb-4">แบบฟอร์มบันทึกการขอเบิกเงิน</h2>
+                <form id="expense-form" onsubmit="handleFormSubmit(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">ชื่อ-นามสกุล <span class="text-rose-500">*</span></label>
+                            <input type="text" id="emp-name" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">แผนก/สังกัด <span class="text-rose-500">*</span></label>
+                            <select id="emp-department" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300">
+                                <option value="" disabled selected>-- เลือกแผนก --</option>
+                                <option value="KS">KS</option>
+                                <option value="AAT">AAT</option>
+                                <option value="3R">3R</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">วันที่เบิก <span class="text-rose-500">*</span></label>
+                            <input type="date" id="claim-date" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">หมวดหมู่ค่าใช้จ่าย <span class="text-rose-500">*</span></label>
+                            <select id="claim-category" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300">
+                                <option value="" disabled selected>-- เลือกหมวดหมู่ --</option>
+                                <option value="ค่าเดินทางตรวจหน้างาน">🚗 ค่าเดินทางตรวจหน้างาน</option>
+                                <option value="ต้นทุนบริการ">🛠️ ต้นทุนบริการ</option>
+                                <option value="ค่ารับรอง">🍽️ ค่ารับรอง</option>
+                                <option value="อื่นๆ">📌 อื่นๆ</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">จำนวนเงิน (บาท) <span class="text-rose-500">*</span></label>
+                            <input type="number" step="0.01" id="claim-amount" required placeholder="0.00" class="w-full px-4 py-2.5 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">ช่องทางการชำระเงิน <span class="text-rose-500">*</span></label>
+                            <select id="payment-method" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300">
+                                <option value="เงินสด / สำรองจ่าย">เงินสด / สำรองจ่าย</option>
+                                <option value="โอนเงินผ่านธนาคาร">โอนเงินผ่านธนาคาร</option>
+                                <option value="บัตรเครดิตบริษัท">บัตรเครดิตบริษัท</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">รายละเอียด / เหตุผลประกอบ <span class="text-rose-500">*</span></label>
+                        <textarea id="claim-description" rows="3" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-4 border-t">
+                        <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-xl border text-slate-600">ยกเลิก</button>
+                        <button type="submit" id="btn-submit" class="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium shadow-md">ส่งคำขอเบิกเงิน</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- CLAIMS LIST -->
+        <section id="page-claims-list" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-100 text-xs uppercase text-slate-500 border-b">
+                        <tr>
+                            <th class="p-4">รหัสเอกสาร</th>
+                            <th class="p-4">วันที่เบิก</th>
+                            <th class="p-4">ชื่อ-นามสกุล / แผนก</th>
+                            <th class="p-4">หมวดหมู่</th>
+                            <th class="p-4 text-right">จำนวนเงิน</th>
+                            <th class="p-4 text-center">สถานะ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="claims-table-tbody" class="divide-y"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzs4FWaIpjdn3SkqmemrCwNlYzY-EzN2_jXOnldMJmdKSRLlfIWfRt5ev6P9HeoYK_R/exec";
+        let claims = [];
+
         window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('claim-date').valueAsDate = new Date();
             fetchClaimsFromSheet();
         });
 
-        // ดึงข้อมูลจาก Google Sheet
         async function fetchClaimsFromSheet() {
             try {
                 const res = await fetch(`${SCRIPT_URL}?action=getClaims`);
@@ -17,25 +180,18 @@ let claims = [];
             }
         }
 
-        // ส่งข้อมูลเข้า Google Sheet เมื่อกดปุ่มยื่นขอเบิก
         async function handleFormSubmit(e) {
             e.preventDefault();
-            const btn = document.querySelector('#expense-form button[type="submit"]');
+            const btn = document.getElementById('btn-submit');
             btn.disabled = true;
-            btn.innerText = "กำลังบันทึกลง Google Sheet...";
-
-            let category = document.getElementById('claim-category').value;
-            if (category === 'อื่นๆ') {
-                const otherDetail = document.getElementById('other-category-detail')?.value.trim();
-                if (otherDetail) category = `อื่นๆ (${otherDetail})`;
-            }
+            btn.innerText = "กำลังส่งข้อมูลลง Google Sheet...";
 
             const newClaim = {
                 id: `EXP-2026-${String(claims.length + 1).padStart(3, '0')}`,
                 empName: document.getElementById('emp-name').value,
                 department: document.getElementById('emp-department').value,
                 date: document.getElementById('claim-date').value,
-                category: category,
+                category: document.getElementById('claim-category').value,
                 paymentMethod: document.getElementById('payment-method').value,
                 amount: parseFloat(document.getElementById('claim-amount').value),
                 description: document.getElementById('claim-description').value,
@@ -51,7 +207,7 @@ let claims = [];
                     body: JSON.stringify({ action: "addClaim", claim: newClaim })
                 });
 
-                alert("ส่งคำขอเรียบร้อย! ข้อมูลบันทึกลง Google Sheet แล้วครับ");
+                alert("ส่งคำขอเรียบร้อย! ข้อมูลบันทึกลง Google Sheet แล้ว");
                 document.getElementById('expense-form').reset();
                 document.getElementById('claim-date').valueAsDate = new Date();
                 
@@ -63,9 +219,50 @@ let claims = [];
                 }, 1500);
 
             } catch (err) {
-                alert("เกิดข้อผิดพลาดในการส่งข้อมูล");
+                alert("เกิดข้อผิดพลาดในการบันทึก");
                 btn.disabled = false;
                 btn.innerText = "ส่งคำขอเบิกเงิน";
             }
         }
+
+        function switchTab(tab) {
+            document.getElementById('page-dashboard').classList.add('hidden');
+            document.getElementById('page-new-claim').classList.add('hidden');
+            document.getElementById('page-claims-list').classList.add('hidden');
+            document.getElementById(`page-${tab}`).classList.remove('hidden');
+        }
+
+        function renderDashboard() {
+            let total = 0, pending = 0, approved = 0, rejected = 0;
+            claims.forEach(item => {
+                const amt = Number(item.amount) || 0;
+                total += amt;
+                if (item.status === 'Pending') pending += amt;
+                if (item.status === 'Approved') approved += amt;
+                if (item.status === 'Rejected') rejected += amt;
+            });
+            document.getElementById('dash-total-amount').innerText = '฿' + total.toLocaleString();
+            document.getElementById('dash-pending-amount').innerText = '฿' + pending.toLocaleString();
+            document.getElementById('dash-approved-amount').innerText = '฿' + approved.toLocaleString();
+            document.getElementById('dash-rejected-amount').innerText = '฿' + rejected.toLocaleString();
+        }
+
+        function renderClaimsTable() {
+            const tbody = document.getElementById('claims-table-tbody');
+            tbody.innerHTML = '';
+            claims.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-4 font-bold text-blue-600">${item.id}</td>
+                    <td class="p-4 text-xs text-slate-500">${item.date}</td>
+                    <td class="p-4 font-medium">${item.empName} (${item.department})</td>
+                    <td class="p-4 text-xs">${item.category}</td>
+                    <td class="p-4 text-right font-bold">฿${Number(item.amount).toLocaleString()}</td>
+                    <td class="p-4 text-center"><span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-800">${item.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
     </script>
+</body>
+</html>
